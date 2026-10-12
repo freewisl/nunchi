@@ -5,9 +5,9 @@
 //   node tools/term-demo.mjs --theme ocean   the same in another theme
 //   node tools/term-demo.mjs --themes        every theme side by side
 //   node tools/term-demo.mjs --live [motion] animated; Ctrl-C to stop
-import { MOTION_NAMES, framesOf, frameAt, compose, W } from '../plugins/nunchi/hooks/mascot/sprite.js'
-import { THEME_NAMES, theme, mascotPalette } from '../plugins/nunchi/hooks/mascot/themes.js'
-import { toCells, toAnsi } from '../plugins/nunchi/hooks/mascot/render.js'
+import { MOTION_NAMES, framesOf, frameAt, compose, W } from '../hooks/mascot/sprite.js'
+import { THEME_NAMES, theme, mascotPalette } from '../hooks/mascot/themes.js'
+import { toCells, toAnsi } from '../hooks/mascot/render.js'
 
 const args = process.argv.slice(2)
 const opt = (name) => {

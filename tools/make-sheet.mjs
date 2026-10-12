@@ -1,9 +1,9 @@
 // Writes tools/sheet.svg: every motion's frames in one theme, and the idle mascot in every theme.
 // node tools/make-sheet.mjs [theme]
 import { writeFileSync } from 'fs'
-import { MOTION_NAMES, framesOf, compose, W, H } from '../plugins/nunchi/hooks/mascot/sprite.js'
-import { THEME_NAMES, theme, mascotPalette } from '../plugins/nunchi/hooks/mascot/themes.js'
-import { toSvgBody } from '../plugins/nunchi/hooks/mascot/render.js'
+import { MOTION_NAMES, framesOf, compose, W, H } from '../hooks/mascot/sprite.js'
+import { THEME_NAMES, theme, mascotPalette } from '../hooks/mascot/themes.js'
+import { toSvgBody } from '../hooks/mascot/render.js'
 
 const name = process.argv[2] ?? 'claude'
 const t = theme(name)

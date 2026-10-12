@@ -2,9 +2,9 @@
 // kitty-graphics terminal will get it, over the theme's background.
 // node tools/make-smooth-sheet.mjs [theme]
 import { writeFileSync } from 'fs'
-import { SMOOTH_MOTION_NAMES, SMOOTH_MOTIONS, smoothScene, paint } from '../plugins/nunchi/hooks/mascot/smooth.js'
-import { rasterize } from '../plugins/nunchi/hooks/mascot/raster.js'
-import { theme, mascotPalette } from '../plugins/nunchi/hooks/mascot/themes.js'
+import { SMOOTH_MOTION_NAMES, SMOOTH_MOTIONS, smoothScene, paint } from '../hooks/mascot/smooth.js'
+import { rasterize } from '../hooks/mascot/raster.js'
+import { theme, mascotPalette } from '../hooks/mascot/themes.js'
 import { png } from './png.mjs'
 
 const name = process.argv[2] ?? 'claude'

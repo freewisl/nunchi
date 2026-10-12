@@ -1,16 +1,16 @@
 {
-  "name": "dkt-mods",
+  "name": "nunchi",
   "owner": {
     "name": "freewisl",
     "url": "https://github.com/freewisl"
   },
   "metadata": {
-    "description": "Our own Claude Code mods"
+    "description": "nunchi, a Claude Code mod: a mascot that reads the room above the prompt, with a live panel"
   },
   "plugins": [
     {
       "name": "nunchi",
-      "source": "./plugins/nunchi",
+      "source": "./",
       "description": "A Claude mascot that reads the room above the prompt, beside a live panel of the plan, subagents, limits, git, the PR and the model."
     }
   ]

@@ -4,9 +4,9 @@
 //   3. does it draw an image through Unicode placeholders (what Claude Code's Image uses)?
 // Run it straight in a terminal pane (in Orca: a new terminal tab), not through Claude Code's `!`.
 //   node tools/kitty-probe.mjs
-import { smoothScene, paint } from '../plugins/nunchi/hooks/mascot/smooth.js'
-import { rasterize } from '../plugins/nunchi/hooks/mascot/raster.js'
-import { mascotPalette } from '../plugins/nunchi/hooks/mascot/themes.js'
+import { smoothScene, paint } from '../hooks/mascot/smooth.js'
+import { rasterize } from '../hooks/mascot/raster.js'
+import { mascotPalette } from '../hooks/mascot/themes.js'
 
 const write = (s) => process.stdout.write(s)
 const COLS = 16

@@ -1,5 +1,5 @@
 // Writes nunchi's sounds, synthesized here from sine tones: soft, short, 22050 Hz 16-bit mono WAV.
-//   node tools/make-sounds.mjs [outDir]   (default plugins/nunchi/sounds)
+//   node tools/make-sounds.mjs [outDir]   (default sounds)
 //
 //   alert   two rising notes: Claude needs your OK or asked you something
 //   done    a rising arpeggio: a turn finished, tests passed
@@ -10,7 +10,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const RATE = 22050
-const out = process.argv[2] ?? join(import.meta.dirname, '..', 'plugins', 'nunchi', 'sounds')
+const out = process.argv[2] ?? join(import.meta.dirname, '..', 'sounds')
 
 const hz = (note) => 440 * 2 ** ((note - 69) / 12) // MIDI note number -> frequency
 

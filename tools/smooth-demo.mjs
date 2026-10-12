@@ -5,9 +5,9 @@
 //   node tools/smooth-demo.mjs                  every motion, four moments each
 //   node tools/smooth-demo.mjs --theme ocean    another theme
 //   node tools/smooth-demo.mjs --live [motion]  animated at 12 fps; Ctrl-C to stop
-import { SMOOTH_MOTION_NAMES, SMOOTH_MOTIONS, smoothScene, paint } from '../plugins/nunchi/hooks/mascot/smooth.js'
-import { rasterize } from '../plugins/nunchi/hooks/mascot/raster.js'
-import { mascotPalette } from '../plugins/nunchi/hooks/mascot/themes.js'
+import { SMOOTH_MOTION_NAMES, SMOOTH_MOTIONS, smoothScene, paint } from '../hooks/mascot/smooth.js'
+import { rasterize } from '../hooks/mascot/raster.js'
+import { mascotPalette } from '../hooks/mascot/themes.js'
 
 const args = process.argv.slice(2)
 const opt = (name) => {

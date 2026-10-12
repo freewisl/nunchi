@@ -1,18 +1,18 @@
 // Draws the README's pictures with nunchi's own drawing code, so they show what nunchi really
-// draws: plugins/nunchi/assets/banner.svg, demo.svg (a session in the terminal) and styles.svg
+// draws: assets/banner.svg, demo.svg (a session in the terminal) and styles.svg
 // (every bar style, the one-line looks, the themes). They move as nunchi does, a frame every
 // 100 ms, as SMIL animations a README on GitHub plays.
 // node tools/make-readme-art.mjs
 
 import { writeFileSync, mkdirSync } from 'fs'
-import { BAR_STYLES } from '../plugins/nunchi/hooks/bars.js'
-import { panelRows, panelBars, collapsedRow, widthOf } from '../plugins/nunchi/hooks/hud.js'
-import { elapsed } from '../plugins/nunchi/hooks/mood.js'
-import { THEME_NAMES, theme, color, mascotPalette } from '../plugins/nunchi/hooks/mascot/themes.js'
-import { frameAt, W as PET_W, H as PET_H } from '../plugins/nunchi/hooks/mascot/sprite.js'
-import { smoothScene, paint, toSvgShapes, SW, SH } from '../plugins/nunchi/hooks/mascot/smooth.js'
+import { BAR_STYLES } from '../hooks/bars.js'
+import { panelRows, panelBars, collapsedRow, widthOf } from '../hooks/hud.js'
+import { elapsed } from '../hooks/mood.js'
+import { THEME_NAMES, theme, color, mascotPalette } from '../hooks/mascot/themes.js'
+import { frameAt, W as PET_W, H as PET_H } from '../hooks/mascot/sprite.js'
+import { smoothScene, paint, toSvgShapes, SW, SH } from '../hooks/mascot/smooth.js'
 
-const OUT = new URL('../plugins/nunchi/assets/', import.meta.url)
+const OUT = new URL('../assets/', import.meta.url)
 const FRAME_MS = 100
 const CW = 8.4 // a terminal cell at 14 px
 const CH = 18
