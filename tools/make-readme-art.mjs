@@ -232,8 +232,8 @@ const SCENES = [
       mood: { tone: 'run', label: `Editing auth.ts · 2 agents · 14 tools · ${secs(f, 72)}` },
       plan: plan(2, 'Fix token refresh', [0, 20, 40]),
       agents: [
-        { title: 'Explore auth flow', tool: 'done', model: 'haiku 4.5', ms: 42_000, state: 'done' },
-        { title: 'Write tests', tool: 'Write auth.test.ts', model: 'sonnet 5.5', ms: 9_000 + f * FRAME_MS, state: 'run' },
+        { title: 'Write tests', tool: 'Write auth.test.ts', model: 'sonnet 5.5', effort: 'high', ms: 9_000 + f * FRAME_MS, state: 'run' },
+        { title: '@reviewer', team: true, tool: 'Read session.ts', model: 'opus 5.5', effort: 'medium', ms: 31_000 + f * FRAME_MS, state: 'run' },
       ],
       meters: meterSet({ ctx: { pct: 38, tokens: 384_000 } }),
     }),
@@ -245,7 +245,10 @@ const SCENES = [
       working: true,
       mood: { tone: 'ask', label: 'needs your OK · Bash npm test' },
       plan: plan(3, 'Run the tests', [0, 20, 40, 60]),
-      agents: [{ title: 'Write tests', tool: 'done', model: 'sonnet 5.5', ms: 95_000, state: 'done' }],
+      agents: [
+        { title: 'Write tests', tool: 'done', model: 'sonnet 5.5', effort: 'high', ms: 95_000, state: 'done' },
+        { title: '@reviewer', team: true, tool: 'idle', model: 'opus 5.5', effort: 'medium', ms: 88_000, state: 'done' },
+      ],
       meters: meterSet({ ctx: { pct: 41, tokens: 412_000 } }),
     }),
   },

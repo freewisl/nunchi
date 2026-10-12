@@ -91,7 +91,7 @@ const HELP = [
   '/nunchi                          the panel or one line, in turn',
   '/nunchi status                   what nunchi shows now',
   '/nunchi on|off                   show or hide everything',
-  '/nunchi style [<name>]           ' + BAR_STYLES.join(' ') + ' (no name: the picker)',
+  '/nunchi style|pick [<name>]      ' + BAR_STYLES.join(' ') + ' (no name: the picker)',
   '/nunchi look <name>              the one line: ' + LOOKS.join(' '),
   '/nunchi view panel|line|auto     auto: the panel while Claude works, needs you or hit a failure',
   '/nunchi place above|below        the mascot and the panel over the prompt or under it',
@@ -125,7 +125,9 @@ let effortSet = null // the effort parts of the settings, read at the start
 let stepEffort = null // { id, effort }: what the last request on the main loop was sent with
 let plan = newPlan()
 let planHist = [] // the plan's percent done after each change, for the spark style
-let agents = new Map() // subagent id -> { title, tool, model, started, endedAt, state }
+let agents = new Map() // subagent id -> { title, tool, model, started, endedAt, state }: the rows shown
+let known = new Map() // every agent this session started, its row kept after it goes
+let looked = new Set() // agents nunchi did not see start, looked up once in Claude Code's list
 let surface = ''
 let size = 'small' // the size the band last drew at
 let site = null // the requestId of the band holding the picture
@@ -143,6 +145,36 @@ const frames = new Map()
 const passThrough = ($, e, next) => next(e)
 
 const touch = () => (st.lastActive = st.now)
+// an agent nunchi did not see start (it began before a reload): Claude Code's list of the
+// session's agents says whether it is a teammate and what it is called
+async function adopt($, id) {
+  if (!id || known.has(id) || looked.has(id)) return
+  looked.add(id)
+  try {
+    const found = (await $.agent.list()).find((x) => x.id === id)
+    if (!found) return
+    const team = Boolean(found.teammateId)
+    known.set(id, {
+      title: team ? '@' + (found.teammateId.split('@')[0] || found.name || 'teammate') : String(found.description || found.name || found.type || 'agent'),
+      team,
+      tool: 'starting',
+      model: '',
+      started: st.now,
+      endedAt: st.now,
+      state: 'done',
+    })
+  } catch {}
+}
+
+// an agent at work: a teammate a message woke after its row went gets the row back
+function working(id) {
+  const a = known.get(id)
+  if (!a) return undefined
+  if (a.state !== 'run') Object.assign(a, { tool: 'starting', started: st.now, endedAt: st.now, state: 'run' })
+  agents.set(id, a)
+  st.agents.add(id)
+  return a
+}
 const wantsSmooth = () => prefs.render === 'smooth' || (prefs.render === 'auto' && smoothOk !== false)
 const petCols = (sz) => (surface === 'terminal' && !wantsSmooth() ? PIXEL_W * SIZES[sz].px : SIZES[sz].img[0])
 const onOff = (b) => (b ? 'on' : 'off')
@@ -530,6 +562,8 @@ export function register(on) {
     plan = newPlan()
     planHist = []
     agents = new Map()
+    known = new Map()
+    looked = new Set()
     site = null
     smoothOk = null
     refusal = ''
@@ -614,7 +648,10 @@ export function register(on) {
   }).catch(passThrough)
 
   on('turn.start', async ($, e, next) => {
-    if (!e.agentId) {
+    if (e.agentId) {
+      await adopt($, e.agentId)
+      if (working(e.agentId)) $.ui.invalidate('ui.render')
+    } else {
       st.turn = newTurn()
       st.asked = false
       st.flash = null
@@ -629,13 +666,17 @@ export function register(on) {
     return next(e)
   })
 
-  // the model and effort each request names: the main loop's for the panel, a subagent's for its row
+  // the model and effort each request names: the main loop's for the panel, a subagent's or a
+  // teammate's for its row
   on('turn.step', async function* ($, e, next) {
     try {
       const m = shortModel(e.model)
       if (e.agentId) {
         const a = agents.get(e.agentId)
-        if (a && m) a.model = m
+        if (a) {
+          if (m) a.model = m
+          a.effort = e.effort == null ? '' : String(e.effort)
+        }
       } else if (e.model) {
         if (modelId(e.model) !== modelId(rawModel)) [rawModel, model] = [String(e.model), m]
         stepEffort = { id: modelId(e.model), effort: e.effort == null ? '' : String(e.effort) }
@@ -661,7 +702,8 @@ export function register(on) {
       st.turn.action = actionOf(e)
       st.turn.running++
     } else {
-      const a = agents.get(e.agentId)
+      await adopt($, e.agentId)
+      const a = working(e.agentId)
       if (a) a.tool = actionOf(e)
     }
     if (e.tool === 'AskUserQuestion') st.questions.add(id ?? 'question')
@@ -695,16 +737,25 @@ export function register(on) {
 
   on('agent.spawn', async ($, e, next) => {
     const started = await next(e)
-    if (started && started.agentId) {
+    // a teammate in a terminal pane of its own runs no loop here: its id is its address and no
+    // event of it comes, so it gets no row (its pane shows it)
+    const pane = started && started.teammateId && started.agentId === started.teammateId
+    if (started && started.agentId && !pane) {
       st.agents.add(started.agentId)
-      agents.set(started.agentId, {
-        title: String(e.description || e.subagentType || 'agent'),
+      // a teammate goes by the name it is messaged by (with the team's suffix, scout-2), a
+      // subagent by its task
+      const team = e.isTeammate === true || Boolean(started.teammateId)
+      const row = {
+        title: team ? '@' + String((started.teammateId || '').split('@')[0] || e.name || 'teammate') : String(e.description || e.name || e.subagentType || 'agent'),
+        team,
         tool: 'starting',
         model: shortModel(started.model),
         started: st.now,
         endedAt: st.now,
         state: 'run',
-      })
+      }
+      agents.set(started.agentId, row)
+      known.set(started.agentId, row)
       $.ui.invalidate('ui.render')
     }
     return started
@@ -714,7 +765,9 @@ export function register(on) {
     if (e.agentId) {
       st.agents.delete(e.agentId)
       const a = agents.get(e.agentId)
-      if (a) Object.assign(a, { state: e.reason === 'answer' ? 'done' : 'error', tool: e.reason === 'answer' ? 'done' : String(e.reason ?? 'stopped'), endedAt: st.now })
+      // a teammate's turn ends in waiting for a message, a subagent's in its answer
+      const ok = e.reason === 'answer'
+      if (a) Object.assign(a, { state: ok ? 'done' : 'error', tool: ok ? (a.team ? 'idle' : 'done') : String(e.reason ?? 'stopped'), endedAt: st.now })
     } else {
       const turn = st.turn
       st.turn = null

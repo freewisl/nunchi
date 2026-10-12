@@ -1,5 +1,8 @@
 import { expect, mock, test } from 'claude-code/testing'
 import { drawBar } from '../hooks/bars.js'
+import { fit, widthOf } from '../hooks/hud.js'
+import { fmtK, burnRate } from '../hooks/meters.js'
+import { newRoam, stepRoam } from '../hooks/roam.js'
 
 const BAND = {
   plugin: 'nunchi',
@@ -76,11 +79,13 @@ function stubs(on, toolCall: any = () => ({ result: 'ok' }), saved = new Map<str
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('tool.call', toolCall)
   on('tool.check', () => ({ decision: 'ask' }))
-  on('agent.spawn', ($, e) => ({ agentId: 'a1', model: 'claude-haiku-4-5' }))
+  // what a spawn answers: a test may change it
+  const spawned: { agentId: string; model: string; teammateId?: string } = { agentId: 'a1', model: 'claude-haiku-4-5' }
+  on('agent.spawn', () => ({ ...spawned }))
   on('turn.complete', () => ({ text: '' }))
   on('session.measure', ($, e) => ({ changed: e.changed }))
   on('ui.render', ($e, e) => $e.ui.resolve(e).Box({ children: [] }))
-  return { saved, clock, sounds, usage }
+  return { saved, clock, sounds, usage, spawned }
 }
 
 const start = async ($, clock?) => {
@@ -191,6 +196,48 @@ test('a narrow terminal cuts the panel rows instead of wrapping them', async ($,
   const { rows } = await hud($, {}, 45)
   expect(rows.length).toBeGreaterThan(2)
   for (const r of rows) expect([...r].length).toBeLessThanOrEqual(38)
+})
+
+test('token counts round before k turns to m; a reset window burns from its first reading', async () => {
+  expect([999_000, 999_499, 999_500, 999_999, 1_000_000, 1_500_000].map(fmtK)).toEqual(['999k', '999k', '1m', '1m', '1m', '1.5m'])
+  const every5 = (pcts: number[]) => pcts.map((pct, i) => ({ t: i * 5 * 60_000, pct }))
+  expect(burnRate(every5([50, 60, 2, 5, 8]))).toBe(burnRate(every5([2, 5, 8])))
+  expect(burnRate(every5([2, 5, 8]))).toBe(36)
+})
+
+test('a band that narrows mid-walk keeps the mascot and where it walks to inside it', async () => {
+  const r = Object.assign(newRoam(), { room: 40, x: 30, target: 38, dir: 1 })
+  r.room = 20
+  for (let t = 0; t < 30_000; t += 100) {
+    stepRoam(r, 'idle', t, 100, () => 0.5)
+    expect(r.x).toBeLessThanOrEqual(20)
+  }
+  // it got there and rests now and then, not stepping at the wall for ever
+  expect(r.restUntil).toBeGreaterThan(0)
+})
+
+test('a cut counts Korean and other wide characters as two cells', async () => {
+  const text = (cols: number) => fit([{ text: 'git ' }, { text: '기능-한글-브랜치-이름' }], cols).map((s) => s.text).join('')
+  for (const cols of [2, 10, 12, 20]) {
+    expect(widthOf(text(cols))).toBeLessThanOrEqual(cols)
+    expect(text(cols).endsWith('…')).toBe(true)
+  }
+  expect(text(10)).toBe('git 기능-…')
+  expect(text(30)).toBe('git 기능-한글-브랜치-이름')
+})
+
+test('a Korean label keeps solid and pixel bars to their width; blocks keep the last part block', async () => {
+  const text = (spans: { text: string }[]) => spans.map((s) => s.text).join('')
+  for (const active of [false, true]) {
+    const solid = drawBar('solid', { fill: [0, 0.4], tone: 'five', width: 24, label: [{ text: '한글 작업 진행 1/3' }], active, frame: 3 })
+    expect(widthOf(text(solid))).toBe(24)
+  }
+  const pixel = drawBar('pixel', { fill: [0, 0.1], tone: 'five', width: 24, label: [{ text: '한글 작업 1/3' }] })
+  expect(widthOf(text(pixel))).toBe(24)
+  const blocks = (p: number) => text(drawBar('blocks', { fill: [0, p], tone: 'five', width: 10 }))
+  expect(blocks(0.94)).toBe('█████████▍')
+  expect(blocks(0.96)).toBe('█████████▌')
+  expect(blocks(1)).toBe('██████████')
 })
 
 test('render auto turns to pixel text where the terminal is never asked about pictures (macOS Terminal)', async ($, on) => {
@@ -370,6 +417,79 @@ test('a row per subagent: its task, what it runs, its model, then a tick', async
   expect(all).toMatch(/↳ Explore auth flow +done .*✓/)
   await clock.advance(6000)
   expect((await hud($)).all).not.toContain('↳')
+})
+
+test('a subagent row shows the effort its requests ask for', async ($, on) => {
+  const { clock } = stubs(on)
+  on('turn.step', async function* ($, e) {
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [] } as any
+  })
+  await start($, clock)
+  await $.turn.start({ text: 'look into it', turnId: 't1' })
+  await $.agent.spawn({ prompt: 'write the tests', description: 'Write tests', subagentType: 'general-purpose' })
+  const step = async (model: string, effort?: string) => {
+    for await (const _ of $.turn.step({ turnId: 'a-turn', index: 0, model, effort, messageCount: 1, agentId: 'a1' } as any) as any) {
+    }
+  }
+  await step('claude-sonnet-5-5', 'high')
+  expect((await hud($)).all).toMatch(/↳ Write tests +starting +sonnet 5\.5 · high/)
+  // a model without effort shows none
+  await step('claude-haiku-4-5')
+  const { all } = await hud($)
+  expect(all).toMatch(/haiku 4\.5  /)
+  expect(all).not.toContain('haiku 4.5 ·')
+})
+
+test('a teammate gets its row back each time it works again', async ($, on) => {
+  const { clock, spawned } = stubs(on)
+  spawned.teammateId = 'reviewer@session'
+  await start($, clock)
+  await $.turn.start({ text: 'build a team', turnId: 't1' })
+  await $.agent.spawn({ prompt: 'review the auth change', description: 'reviewer', name: 'reviewer' })
+  await $.tool.call({ tool: 'Read', file_path: '/src/login.ts', agentId: 'a1' })
+  // ⇄ and its @name tell it from a subagent's ↳ and task
+  expect((await hud($)).all).toMatch(/⇄ @reviewer +Reading login\.ts/)
+  await $.turn.complete({ ...done('a-turn', 'looks fine', 'a1') })
+  expect((await hud($)).all).toMatch(/⇄ @reviewer +idle .*✓/)
+  // it waits for a message: the row goes as a subagent's does
+  await clock.advance(6000)
+  expect((await hud($)).all).not.toContain('↳')
+  // a message wakes it: the same row again, with what it runs now
+  await $.turn.start({ text: 'check the tests too', turnId: 'a-turn-2', agentId: 'a1' })
+  await $.tool.call({ tool: 'Grep', pattern: 'login', agentId: 'a1' })
+  const { all } = await hud($)
+  expect(all).toMatch(/⇄ @reviewer +Searching/)
+  expect(all).toContain('haiku 4.5')
+  expect(await status($)).toMatch(/1 agent/)
+  await $.turn.complete({ ...done('a-turn-2', 'done', 'a1') })
+  expect((await hud($)).all).toMatch(/⇄ @reviewer +idle .*✓/)
+})
+
+test('an agent started before nunchi loaded is looked up once and gets its row', async ($, on) => {
+  const { clock } = stubs(on)
+  let asked = 0
+  on('agent.list', () => {
+    asked++
+    return { value: [{ id: 'x9', teammateId: 'scout@session', description: 'scout the repo', type: 'teammate', status: 'running', name: 'scout' }] }
+  })
+  await start($, clock)
+  await $.turn.start({ text: 'look around', turnId: 'x-turn', agentId: 'x9' })
+  await $.tool.call({ tool: 'Read', file_path: '/src/login.ts', agentId: 'x9' })
+  expect((await hud($)).all).toMatch(/⇄ @scout +Reading login\.ts/)
+  // one it cannot find is asked about once, not on every call
+  await $.tool.call({ tool: 'Read', file_path: '/src/a.ts', agentId: 'gone' })
+  await $.tool.call({ tool: 'Read', file_path: '/src/b.ts', agentId: 'gone' })
+  expect(asked).toBe(2)
+})
+
+test('a teammate in a terminal pane of its own gets no row: nothing of it comes here', async ($, on) => {
+  const { clock, spawned } = stubs(on)
+  Object.assign(spawned, { agentId: 'scout@session', teammateId: 'scout@session' })
+  await start($, clock)
+  await $.turn.start({ text: 'build a team', turnId: 't1' })
+  await $.agent.spawn({ prompt: 'scout the repo', description: 'scout', name: 'scout' })
+  expect((await hud($)).all).not.toContain('↳')
+  expect(await status($)).not.toMatch(/1 agent/)
 })
 
 test('the model shows with the effort: the settings first, then what each request asks for', async ($, on) => {

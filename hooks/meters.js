@@ -19,7 +19,8 @@ export function untilReset(iso, now = Date.now()) {
 // 312000 -> "312k", 1000000 -> "1m"
 export function fmtK(n) {
   if (n == null) return ''
-  if (n >= 1e6) return +(n / 1e6).toFixed(n % 1e6 ? 1 : 0) + 'm'
+  // by the thousands it rounds to, so 999,600 reads 1m and not 1000k
+  if (Math.round(n / 1e3) >= 1e3) return +(n / 1e6).toFixed(n % 1e6 ? 1 : 0) + 'm'
   if (n >= 1e3) return Math.round(n / 1e3) + 'k'
   return String(n)
 }
@@ -34,7 +35,8 @@ export function mergeLimits(old, fresh, now = Date.now()) {
 // percent an hour, from readings { t (ms), pct } oldest first; null until there are a few
 // minutes of them, or while it is not rising (a window that reset starts over)
 export function burnRate(samples) {
-  const s = samples.slice(samples.findLastIndex((x, i) => i > 0 && x.pct < samples[i - 1].pct) + 1 || 0)
+  // from the first reading of the window now running: the one that fell below the one before
+  const s = samples.slice(Math.max(0, samples.findLastIndex((x, i) => i > 0 && x.pct < samples[i - 1].pct)))
   if (s.length < 3) return null
   const first = s[0]
   const last = s[s.length - 1]

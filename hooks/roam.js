@@ -19,7 +19,9 @@ export function newRoam() {
 
 // one tick of `dt` ms in a mood: { motion, flip } to play, moving r along
 export function stepRoam(r, motion, now, dt, rand = Math.random) {
+  // the band may have narrowed since the last tick: the mascot and where it walks to stay in it
   r.x = Math.max(0, Math.min(r.x, r.room))
+  if (r.target !== null) r.target = Math.max(0, Math.min(r.target, r.room))
   const pace = PACES[motion]
   const still = { motion, flip: r.dir < 0 }
   if (!pace || r.room < MIN_TRIP) {

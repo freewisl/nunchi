@@ -1,6 +1,6 @@
 {
   "name": "nunchi",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "A Claude mascot that reads the room: it wanders above the prompt and reads, types, runs, asks and celebrates with Claude, beside a live panel of the plan, subagents, context and plan limits, git, the pull request and the model. Seven animated bar styles, eight themes; terminal and Desktop.",
   "author": {
     "name": "freewisl",

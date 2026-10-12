@@ -5,17 +5,28 @@
 // per subagent, a bar per meter, then a row with git, the pull request and the model. Collapsed,
 // one line in one of three looks: chips with mini bars, plain text, or limit rings.
 
-import { drawBar, miniBar, ring } from './bars.js'
+import { drawBar, miniBar, ring, cellsOf, widthOf } from './bars.js'
 import { fmtK } from './meters.js'
 import { elapsed } from './mood.js'
 
 const GLYPH = { run: '●', ask: '?', hot: '!', done: '✓', dim: '·', cool: '♪' }
 const GAP = '   '
 
-// cells a string takes: wide (CJK, Hangul, fullwidth) characters take two
-const WIDE = /[ᄀ-ᅟ⺀-꓏가-힣豈-﫿︰-﹏＀-｠￠-￦]/
-export const widthOf = (s) => [...String(s)].reduce((n, c) => n + (WIDE.test(c) ? 2 : 1), 0)
-const clip = (s, n) => (widthOf(s) > n ? [...String(s)].slice(0, Math.max(1, n - 1)).join('') + '…' : String(s))
+export { widthOf }
+
+// cut to n cells, counted as widthOf counts them, the last an ellipsis
+function clip(s, n) {
+  if (widthOf(s) <= n) return String(s)
+  let out = ''
+  let used = 0
+  for (const c of String(s)) {
+    const w = cellsOf(c)
+    if (used + w > n - 1) break
+    out += c
+    used += w
+  }
+  return out + '…'
+}
 const join = (chips, sep = GAP) => chips.flatMap((c, i) => (i ? [{ text: sep, tone: 'dim' }, ...c] : c))
 
 // spans cut to `cols` cells, an ellipsis where they were cut
@@ -105,13 +116,14 @@ function headBar(info, show) {
   return null
 }
 
+// a row per agent at work: ↳ a subagent by its task, ⇄ a teammate by its @name (it can be messaged)
 function agentRows(info) {
   const shown = info.agents.slice(0, 4)
   const rows = shown.map((a) => [
-    { text: '  ↳ ', tone: 'dim' },
+    { text: a.team ? '  ⇄ ' : '  ↳ ', tone: 'dim' },
     { text: clip(a.title, 30), tone: a.state === 'error' ? 'hot' : 'text' },
     { text: '  ' + clip(a.tool, 26), tone: 'dim' },
-    ...(a.model ? [{ text: '  ' + a.model, tone: 'cool' }] : []),
+    ...(a.model ? [{ text: '  ' + a.model, tone: 'cool' }, ...(a.effort ? [{ text: ' · ' + a.effort, tone: 'dim' }] : [])] : []),
     { text: '  ' + elapsed(a.ms), tone: 'dim' },
     ...(a.state === 'done' ? [{ text: ' ✓', tone: 'done' }] : a.state === 'error' ? [{ text: ' ✖', tone: 'hot' }] : []),
   ])

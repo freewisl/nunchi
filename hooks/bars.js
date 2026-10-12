@@ -1,12 +1,12 @@
 // Bars drawn with the terminal's own glyphs and colors, one per style. Pure, no $.
 //
 // A bar is a list of spans { text, tone?, bg? }; tones are theme keys, with a shade after `~`
-// (themes.js `color`: lo, mid, hi, deep, bg). `fill` is the lit part as [from, to] fractions of the
-// width: [0, p] for progress, a window moving along for an activity sweep. `label` is spans too;
-// solid and pixel carry it inside the bar, the others after it. `frame` moves the animations
-// (one per FRAME_MS, 100 ms, in register.js); an `active` bar shimmers and pulses where the others
-// keep still (every bar, under motion all). `marks` are the fractions ticks go at: the plan's step
-// boundaries, else the quarters.
+// (mascot/themes.js `color`: lo, lite, mid, hi, deep, bg). `fill` is the lit part as [from, to]
+// fractions of the width: [0, p] for progress, a window moving along for an activity sweep. `label`
+// is spans too; solid and pixel carry it inside the bar, the others after it. `frame` moves the
+// animations (one per FRAME_MS, 100 ms, in register.js); an `active` bar shimmers and pulses where
+// the others keep still (every bar, under motion all). `marks` are the fractions ticks go at: the
+// plan's step boundaries, else the quarters.
 //
 //   solid     a filled bar with its label inside; a light band sweeps the filled part
 //   pixel     braille dots each twinkling on its own, brighter toward the head ⣟, a pill label
@@ -23,6 +23,10 @@ const LEVELS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█']
 const QUARTERS = [0.25, 0.5, 0.75]
 const level = (pct) => LEVELS[Math.max(0, Math.min(7, Math.floor((pct / 100) * 8)))]
 const textOf = (spans) => spans.map((s) => s.text).join('')
+// cells a character or a string takes: wide (CJK, Hangul, fullwidth) characters take two
+const WIDE = /[ᄀ-ᅟ⺀-꓏가-힣豈-﫿︰-﹏＀-｠￠-￦]/
+export const cellsOf = (c) => (WIDE.test(c) ? 2 : 1)
+export const widthOf = (s) => [...String(s)].reduce((n, c) => n + cellsOf(c), 0)
 
 // a well-mixed number for cell i (and a salt), the same every time
 function hash(i, salt = 0) {
@@ -92,14 +96,17 @@ export function drawBar(style, { fill, tone, label = [], width = 24, hist = [], 
     case 'solid': {
       // the label rides inside; the lit part is the tone with a deep shade of it as ink, the rest
       // the track with the label in its own colors; while active a lighter band sweeps the lit part
+      // the track; a wide character (Hangul, CJK) takes two of the width's cells
       const inks = [' ', ...label.flatMap((s) => [...s.text].map(() => s.tone || 'text')), ' ']
-      const chars = [...(' ' + textOf(label) + ' ').padEnd(width)]
-      const w = chars.length
+      const chars = [...(' ' + textOf(label) + ' ')]
+      for (let used = widthOf(chars.join('')); used < width; used++) chars.push(' ')
+      const at = [] // the cell each character starts at
+      const w = chars.reduce((cell, c, i) => ((at[i] = cell), cell + cellsOf(c)), 0)
       const [x, y] = litCells(fill, w)
       const glow = active ? sweep(frame, x, y) : () => ''
-      return run(w, (i) => {
-        if (i < x || i >= y) return { text: chars[i], tone: inks[i] && inks[i] !== ' ' ? inks[i] : 'dim', bg: 'track' }
-        return { text: chars[i], tone: tone + '~deep', bg: tone + glow(i) }
+      return run(chars.length, (i) => {
+        if (at[i] < x || at[i] >= y) return { text: chars[i], tone: inks[i] && inks[i] !== ' ' ? inks[i] : 'dim', bg: 'track' }
+        return { text: chars[i], tone: tone + '~deep', bg: tone + glow(at[i]) }
       })
     }
     case 'pixel': {
@@ -107,7 +114,7 @@ export function drawBar(style, { fill, tone, label = [], width = 24, hist = [], 
       // where the fill ends; the label as a pill right after; the track runs on to the width with
       // its ticks, the whole bar the same width whatever the label
       const pill = ' ' + textOf(label) + ' '
-      const pillW = [...pill].length
+      const pillW = widthOf(pill)
       const head = fill[0] === 0 && b > a && b < width ? b - 1 : -1
       const lit = run(b, (i) => {
         if (i < a) return { text: ' ', bg: 'track' }
@@ -149,8 +156,9 @@ export function drawBar(style, { fill, tone, label = [], width = 24, hist = [], 
     }
     case 'blocks': {
       const exact = fill[0] === 0 ? fill[1] * width : b
-      const part = fill[0] === 0 && b < width ? EIGHTHS[Math.floor((exact - Math.floor(exact)) * 8)] : ''
       const full = fill[0] === 0 ? Math.floor(exact) : b
+      // the eighths of the cell after the full ones, whichever way `b` rounded
+      const part = fill[0] === 0 && full < width ? EIGHTHS[Math.floor((exact - full) * 8)] : ''
       // while active a light band sweeps the blocks and the edge pulses
       const glow = active ? sweep(frame, a, full) : () => ''
       const edge = active && pulse(frame) ? tone + '~hi' : tone
