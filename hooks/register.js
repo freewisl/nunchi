@@ -38,6 +38,9 @@ const PR_EVERY_MS = 60_000
 const PR_GAP_MS = 10_000
 const AGENT_LINGER_MS = 5000 // a finished subagent keeps its row this long
 const SOUND_GAP_MS = 1200
+// a picture still drawing its alt this long while the terminal was never asked (macOS Terminal never
+// answers the question that would ask it) is taken as refused
+const ALT_GRACE_MS = 3000
 const PLAY_MS = 6000
 const PREFS_VERSION = 3
 const RENDERS = ['auto', 'smooth', 'pixel']
@@ -90,11 +93,13 @@ const HELP = [
   '/nunchi on|off                   show or hide everything',
   '/nunchi style [<name>]           ' + BAR_STYLES.join(' ') + ' (no name: the picker)',
   '/nunchi look <name>              the one line: ' + LOOKS.join(' '),
-  '/nunchi view panel|line|auto     auto: the panel while Claude works or needs you',
+  '/nunchi view panel|line|auto     auto: the panel while Claude works, needs you or hit a failure',
   '/nunchi place above|below        the mascot and the panel over the prompt or under it',
+  '/nunchi motion all|work|off      the bars: all of them always, the plan\'s while Claude works, still',
   '/nunchi theme [<name>]           ' + THEME_NAMES.join(' '),
   '/nunchi render auto|smooth|pixel how the mascot is drawn',
   '/nunchi size small|big           the mascot',
+  '/nunchi pet side|above           the mascot right of the bars when wide, or over the panel',
   '/nunchi pet|roam|sound on|off    the mascot, its wandering, the sounds',
   '/nunchi ' + SECTIONS.join('|') + ' on|off',
   '/nunchi play [<motion>]          ' + MOTION_NAMES.join(' '),
@@ -126,6 +131,7 @@ let size = 'small' // the size the band last drew at
 let site = null // the requestId of the band holding the picture
 let smoothOk = null // null: not known yet; true: the terminal drew it; false: it draws the alt
 let refusal = ''
+let altSince = null // when the picture began drawing its alt, while the terminal is not asked yet
 let pinged = false // the mood asked for you last tick, so the alert sounds once per ask
 let soundAt = -Infinity
 let drawn = '' // what the last tick asked to draw, to skip redraws that change nothing
@@ -527,6 +533,7 @@ export function register(on) {
     site = null
     smoothOk = null
     refusal = ''
+    altSince = null
     pinged = false
     soundAt = -Infinity
     let saved = null
@@ -559,14 +566,25 @@ export function register(on) {
       const t = st.now - shown.since
       const smooth = surface === 'terminal' && prefs.pet && wantsSmooth() && site
       if (smooth) {
-        const r = await $.ui.blit({ requestId: site, key: 'nunchi-pet', source: smoothFrame(pose.motion, t, pose.flip, size) })
+        // a refusal may come back as { deny } or be thrown: either way it is a reason, and the tick goes on
+        const r = await $.ui
+          .blit({ requestId: site, key: 'nunchi-pet', source: smoothFrame(pose.motion, t, pose.flip, size) })
+          .catch((err) => ({ deny: String(err?.message ?? err).replace(/^.*?\$\.ui\.blit: /, '') }))
         if (r && r.deny) {
-          // final only once the terminal has answered: before that the reason says "not asked yet"
-          if (prefs.render === 'auto' && /no placeholder images|every 8-bit image id/.test(r.deny) && !/not asked yet/.test(r.deny)) {
-            smoothOk = false
-            refusal = r.deny
+          // final once the terminal has answered; before that the reason says "not asked yet", and
+          // a terminal that never answers keeps saying it, so that too is final after a while
+          if (prefs.render === 'auto' && /no placeholder images|every 8-bit image id/.test(r.deny)) {
+            const asked = !/not asked yet/.test(r.deny)
+            if (altSince === null) altSince = st.now
+            if (asked || st.now - altSince >= ALT_GRACE_MS) {
+              smoothOk = false
+              refusal = r.deny
+            }
           }
-        } else if (smoothOk === null) smoothOk = true
+        } else {
+          altSince = null
+          if (smoothOk === null) smoothOk = true
+        }
       }
       const frame = smooth ? '' : frameIndex(pose.motion, t)
       const moving = barsMove() ? Math.floor(st.now / FRAME_MS) : 0
@@ -581,7 +599,7 @@ export function register(on) {
       await $.command.register({
         name: 'nunchi',
         description: 'nunchi: the mascot above the prompt and the panel under it (bar styles, looks, themes, sounds, sections)',
-        argumentHint: '[status|on|off|style [<name>]|look <name>|view <how>|theme <name>|render <how>|size small|big|<section> on|off|play <motion>]',
+        argumentHint: '[status|on|off|style [<name>]|look <name>|view <how>|place above|below|motion <how>|theme <name>|render <how>|size small|big|pet side|above|<section> on|off|play <motion>]',
         immediate: true,
       })
     } catch {}
@@ -764,6 +782,7 @@ export function register(on) {
       if (!RENDERS.includes(b)) return { text: 'render: ' + RENDERS.join(' ') + ' (now ' + prefs.render + ')' }
       prefs.render = b
       if (b !== 'pixel') smoothOk = null
+      altSince = null
     } else if (a === 'size') {
       if (!(b in SIZES)) return { text: 'size: ' + Object.keys(SIZES).join(' ') + ' (now ' + prefs.size + ')' }
       prefs.size = b

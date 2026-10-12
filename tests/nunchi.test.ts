@@ -193,6 +193,25 @@ test('a narrow terminal cuts the panel rows instead of wrapping them', async ($,
   for (const r of rows) expect([...r].length).toBeLessThanOrEqual(38)
 })
 
+test('render auto turns to pixel text where the terminal is never asked about pictures (macOS Terminal)', async ($, on) => {
+  const { clock } = stubs(on)
+  const deny = 'the Image draws its alt here: the terminal draws no placeholder images (env: terminal=Apple_Terminal, not asked yet, no answer)'
+  on('ui.blit', () => ({ deny }))
+  await start($, clock)
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await band.find({ type: 'Image', key: 'nunchi-pet' })).toBeDefined()
+  // a terminal about to answer gets a moment
+  await clock.advance(1000)
+  expect(await status($)).toMatch(/render auto → smooth picture/)
+  await clock.advance(3000)
+  expect(await status($)).toMatch(/render auto → pixel text \(the terminal draws no placeholder images \(env: terminal=Apple_Terminal/)
+  await band.unmount()
+  const again = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await again.find({ type: 'Image', key: 'nunchi-pet' })).toBeUndefined()
+  expect(await again.find({ key: 'nunchi-band' })).toBeDefined()
+  await again.unmount()
+})
+
 test('place below moves the mascot and the panel under the prompt, after the mode line', async ($, on) => {
   const { clock } = stubs(on)
   await start($, clock)

@@ -52,46 +52,33 @@ Claude Code에서:
 
 ## 보여주는 것
 
-```
-            [마스코트 →]                       ← 입력창 폭 전체를 돌아다님
-  ███████ Fixing auth 3/5 ░░░░░░░░░░  Editing auth.ts · 2 agents · 14 tools · 3m 12s
-    ↳ Explore auth flow  Reading login.ts  haiku 4.5  42s
-    ↳ Write tests  done  sonnet 5.5  1m 35s ✓
-  ██ ctx · 31% ░░░░░░░░░░░░░░░░░░░░░  312k/1m
-  ███ 5h · 46% used ░░░░░░░░░░░░░░░░  ↻3h47m · +12%/h
-  ██████████ 7d · 64% used ░░░░░░░░░  ↻2d5h
-  git feat/login ↑2 3 changed 1 new (+42 −7)   PR #12 ◷1 approved   ◆ opus 5.5 · xhigh
-──────────────────────────────────────────────
-❯ _
-──────────────────────────────────────────────
-  ⏵⏵ bypass permissions on (shift+tab to cycle)
-```
+위 그림의 패널은 위에서부터 이런 줄로 돼요. 줄마다 `/nunchi <항목> on|off`로 켜고 꺼요(맨 오른쪽 열이 항목 이름).
 
 | 줄 | 보여주는 것 | 어디서 오나 | 항목 |
 |---|---|---|---|
-| **할 일 막대** | 단계 수, 지금 단계, 단계 경계 눈금 | Claude의 할 일 목록 (TodoWrite, Task 도구) | `plan` |
-| **활동 막대** | 지금 하는 일 (`Editing auth.ts · 14 tools · 1m 12s`) | 할 일 목록이 없는 턴 | `plan` |
-| **서브에이전트 줄** `↳` | 작업 이름, 지금 쓰는 도구, 모델, 경과 시간, 끝나면 `✓`/`✖` (5초 뒤 사라짐, 최대 4줄) | 서브에이전트 | `agents` |
+| **할 일 막대** | 단계 수, 지금 단계 | Claude의 할 일 목록 (TodoWrite, TaskCreate·TaskUpdate) | `plan` |
+| **활동 막대** | 지금 하는 일 (`Editing auth.ts · 14 tools · 1m 12s`) | 할 일 목록이 없는 턴 (`plan off`면 늘) | 늘 켜짐 |
+| **서브에이전트 줄** `↳` | 작업 이름, 지금 쓰는 도구, 모델, 경과 시간, 끝나면 `✓`/`✖` (5초 뒤 사라짐, 4줄이 넘으면 `+N more`) | 서브에이전트 | `agents` |
 | **컨텍스트** | 쓴 토큰 / 창 크기 | 이 세션 | `context` |
-| **5h·7d 한도** | 사용률, 리셋까지 남은 시간, 소모 속도 `+12%/h` | 요금제 한도 | `limits` |
+| **5h·7d 한도** | 사용률, 리셋까지 남은 시간, 소모 속도 `+12%/h` (모델별 7일 한도가 있으면 `7d opus` 같은 줄도) | 요금제 한도 | `limits` |
 | **git** | 브랜치, `↑`앞섬 `↓`뒤처짐, `3 changed` 수정한 파일, `1 new` 아직 git에 추가 안 한 새 파일, `1 conflict` 충돌, `(+42 −7)` 바뀐 줄 수, 깨끗하면 `clean` | `git status` (로컬) | `git` |
-| **PR** | `PR #12`, 체크 `✓` `✖2` `◷1`, 리뷰 상태 | `gh pr view` (GitHub) | `pr` |
+| **PR** | `PR #12`, 체크 `✓` `✖2` `◷1`, 리뷰 상태(`approved`, `changes requested`, `review needed`), `draft`·`merged`·`closed` | `gh pr view` (GitHub) | `pr` |
 | **모델** | `◆ opus 5.5 · xhigh` 모델과 effort | 설정, 실제로 나간 요청 | `model` |
 | **비용·시각** (꺼짐) | 이 세션 비용, 현재 시각 | 이 세션 | `cost` `clock` |
 
-**확인이 필요하면** (권한 확인, 질문, `?`로 끝나는 답) 맨 위 줄이 노란색이 되고, 마스코트가 `?`를 띄우고, 알림음이 나요. 할 일을 다 마치면 막대가 초록색이 되고 마스코트가 축하해요. 사용량이 80%를 넘으면 그 미터는 빨간색이 돼요.
+**확인이 필요하면** (권한 확인, 질문, `?`로 끝나는 답) 맨 위 줄이 노란색이 되고, 마스코트가 `?`를 띄우고, 알림음이 나요. **실패하면** (도구 실패, 테스트 실패, 오류로 멈춘 턴) 맨 위 줄이 빨간색 `!`가 돼요. 할 일을 다 마치면 막대가 초록색이 되고, 턴이 끝나면 마스코트가 축하해요. 사용량이 80%를 넘으면 그 미터는 빨간색이 돼요. 색은 테마에 따라 조금씩 달라요.
 
 **한 줄로 접으면** (`/nunchi`) 확인이 필요한 일, 5h·7d 한도, 컨텍스트, 지금 하는 일 순서로 한 줄에 나와요. 모양은 `/nunchi look`으로 골라요:
 
-- `chips` (기본): 링과 미니 막대 `◑ 5h 46% ↻3h47m ██▊   │  ◕ 7d 64% ↻2d5h ███▏  │  ◔ ctx 31% █▌`
-- `text`: 한 줄 상태 표시 `◑ 5h 46% ↻3h47m  ◕ 7d 64% ↻2d5h  ◆ opus 5.5 · xhigh  git main ↑2  PR #12 ✓`
-- `rings`: 한도마다 큰 숫자와 리셋 시간 `◑ 46% 5h · resets 3h47m   ◕ 64% 7d · resets 2d5h   $ 1.23 this session`
+- `chips` (기본): 링과 미니 막대 `◑ 5h 46% ↻3h47m ██▎    │  ◕ 7d 64% ↻2d5h ███▏   │  ◔ ctx 31% █▌`
+- `text`: 한 줄 상태 표시 `◑ 5h 46% ↻3h47m  ◕ 7d 64% ↻2d5h  ◔ ctx 31%  ◆ opus 5.5 · xhigh  git main ↑2 clean  PR #12 ✓`
+- `rings`: 한도마다 큰 숫자와 리셋 시간 `◑ 46% 5h · resets 3h47m   ◕ 64% 7d · resets 2d5h   ◔ 31% ctx` (`cost on`이면 끝에 `$ 1.23 this session`)
 
-`/nunchi view auto`는 Claude가 일하거나 확인을 기다릴 때만 패널을 펼치고, 나머지는 한 줄로 보여줘요.
+`/nunchi view auto`는 Claude가 일하거나, 확인을 기다리거나, 실패했을 때만 패널을 펼치고, 나머지는 한 줄로 보여줘요.
 
 **자리.** 마스코트와 패널은 기본으로 입력창 위에 나와요. `/nunchi place below`면 둘이 함께 입력창 아래로 가고, `/nunchi place above`면 다시 위로 와요. 피커에서는 `o`(위)·`u`(아래)로 골라요. 입력창 바로 아래의 모드 줄(`⏵⏵ bypass permissions on`)은 Claude Code가 고정으로 그려서, 아래로 보내면 늘 그 줄 다음에 나와요. 폭이 모자라면 줄 끝을 `…`로 자르고(줄바꿈 없음), 입력창 위 공간이 모자라면 패널이 한 줄로 접혀요.
 
-**마스코트 자리.** 터미널이 넓으면 마스코트가 **막대 오른쪽 빈 곳**에서 돌아다니고, 패널 맨 아래 줄 높이에 서요. 패널은 막대(터미널 폭의 1/4)와 그 뒤 글자 40칸(최소 96칸)까지 쓰고, 그 오른쪽이 마스코트 자리예요. 대략 150칸 이상인 터미널에서 옆으로 가요. 입력창 위 공간도 그만큼(5줄) 덜 차지해요. 마스코트가 들어갈 만큼 넓지 않으면 패널 위에 나와요. `/nunchi pet above`면 늘 패널 위에, `/nunchi pet side`면 다시 옆에(피커에서는 `t`·`s`). 입력창 아래(`place below`)에서도 똑같아요.
+**마스코트 자리.** 터미널이 넓으면 마스코트가 **막대 오른쪽 빈 곳**에서 돌아다니고, 패널 맨 아래 줄 높이에 서요. 패널은 막대(터미널 폭의 1/4)와 그 뒤 글자 40칸(최소 96칸)까지 쓰고, 그 오른쪽이 마스코트 자리예요. 기본 크기면 대략 120칸 이상인 터미널에서 옆으로 가요(픽셀이나 `size big`이면 조금 더 넓어야 해요). 입력창 위 공간도 마스코트 높이만큼(작은 크기면 5줄) 덜 차지해요. 마스코트가 들어갈 만큼 넓지 않으면 패널 위에 나와요. `/nunchi pet above`면 늘 패널 위에, `/nunchi pet side`면 다시 옆에(피커에서는 `t`·`s`). 입력창 아래(`place below`)에서도 똑같아요.
 
 소모 속도는 1분마다 기록한 사용량으로 계산해요. 4분 이상 기록이 쌓이고 오르고 있을 때만 나와요. effort는 처음엔 설정에서 읽고(`modelSettings["claude-opus-5-5"].effortLevel`, 없으면 `effortLevel`), 요청이 나가면 그 요청에 실제로 붙은 값으로 바뀌어요.
 
@@ -113,20 +100,20 @@ Claude Code에서:
 | `dots` | `●─●─◉┄○` 단계마다 점, 미터는 `● ● ◐ ○` | 현재 단계 `◉`(미터는 마지막 점)가 반짝임 |
 | `spark` | `━━──` + `▁▂▄▅` 진행·사용량 기록 | 가장 최근 값이 맥박 |
 
-막대는 **터미널 폭의 1/4**이고, 모든 막대가 같은 폭으로 줄을 맞춰요 (`solid`·`pixel`은 글자가 들어갈 만큼은 늘 넓어요). 라벨은 막대 색으로 칠해져요 (`Fixing auth` + 회색 `3/5`, `5h · 46% used`). `solid`·`pixel`은 빈 부분도 회색 트랙으로 칠해져서 사용량이 적어도 막대로 보여요.
+막대는 **터미널 폭의 1/4**이고 줄을 맞춰요. `solid`·`pixel`은 글자가 들어갈 만큼은 늘 넓고, `dots`는 단계 수만큼, `spark`는 가는 막대 뒤에 기록이 붙어서 폭이 달라요. `solid`·`pixel`은 라벨이 막대 안에 들어가고 빈 부분도 회색 트랙으로 칠해져서 사용량이 적어도 막대로 보여요. 나머지 스타일은 라벨을 막대 뒤에 막대 색으로 써요 (`Fixing auth` + 회색 `3/5`, `5h · 46% used`).
 
 **움직임** (`/nunchi motion`, 100ms마다 다시 그림):
 
 - `all` (기본): **모든 막대가 늘** 움직여요. 미터마다 박자가 조금씩 어긋나서 한꺼번에 깜빡이지 않아요.
 - `work`: Claude가 일하는 동안 할 일 막대만 움직여요 (`pixel`은 늘 반짝임).
-- `off`: 아무것도 움직이지 않아요.
+- `off`: 막대가 움직이지 않아요 (마스코트는 그대로 움직여요).
 
 한 줄 모양일 때는 막대가 없어서 다시 그리지 않아요.
 
 | 피커 키 | 고르는 것 |
 |---|---|
 | `1`–`7` | 막대 스타일 |
-| `8` `9` `0` | 한 줄 모양 (고르면 한 줄 보기로 바뀜) |
+| `8` `9` `0` | 한 줄 모양 (패널 보기였다면 한 줄 보기로 바뀜) |
 | `a`–`h` | 테마 |
 | `x` | 패널 ↔ 한 줄 |
 | `o` `u` | 마스코트와 패널을 입력창 위 / 아래에 |
@@ -162,11 +149,11 @@ Claude Code에서:
 | 편집·명령 실행·MCP 도구 | 노트북 타이핑 | 멈춰서 |
 | 서브에이전트 작업 중 | 달리기 | 빠르게 왔다 갔다 |
 | 권한 확인·질문·답변이 `?`로 끝남 | 물음표 🔔 | 멈춰서 |
-| 도구 실패, 테스트 실패 | 놀란 얼굴 (!) 🔔 | 제자리 |
+| 도구 실패, 테스트 실패, 오류로 멈춘 턴 | 놀란 얼굴 (!) 🔔 | 제자리 |
 | 테스트 통과 | 춤 🔔 | 제자리 |
-| `git commit` | 축하 🔔 | 제자리 |
+| `git commit`, `git merge`·`rebase` | 축하 🔔 | 제자리 |
 | `git push` | 점프 🔔 | 제자리 |
-| PR 생성·머지 | 춤 🔔 | 제자리 |
+| PR 생성·머지·ready | 춤 🔔 | 제자리 |
 | 턴 완료 | 축하 🔔 | 제자리 |
 
 🔔는 소리가 나는 경우예요 (macOS `afplay`, 다른 OS에서는 무음). `/nunchi sound off`로 꺼요. 테스트 실행은 `npm test`, `pnpm test`, `pytest`, `jest`, `vitest`, `go test`, `cargo test`, `make test` 같은 명령으로 알아보고, commit·push·PR은 Claude Code가 Bash 결과에 붙여주는 git 작업 정보로 알아봐요.
@@ -183,7 +170,7 @@ Claude Code에서:
 - **픽셀 글자.** 그 밖의 모든 경우예요. 글자 한 칸을 위아래 반 칸씩(`▀` `▄`) 색칠해서 그려요. 글자라서 어느 터미널에서나 나오지만, 픽셀 하나가 반 칸이라 각져 보여요.
 - Claude Desktop에서는 SVG로 그려서 늘 부드러워요.
 
-`render auto`(기본)는 그림을 먼저 그려 보고, 터미널이 거절하면 픽셀로 바꿔요. 따로 설정할 건 없어요. 각지게 나온다면 보통 이 중 하나예요.
+`render auto`(기본)는 그림을 먼저 그려 보고, 터미널이 거절하거나 3초 안에 그릴 수 있다고 답하지 않으면 픽셀로 바꿔요. 따로 설정할 건 없어요. 각지게 나온다면 보통 이 중 하나예요.
 
 | 경우 | 이유 | 이렇게 하면 부드러워져요 |
 |---|---|---|
@@ -196,7 +183,7 @@ Claude Code에서:
 
 `CLAUDE_CODE_FORCE_TERMINAL_IMAGES=1`은 그림을 지원하는 터미널에서만 켜세요. 지원하지 않는 터미널에서 켜면 화면이 깨져요. Orca는 placeholder 지원이 들어온 뒤(stablyai/orca PR #23616, #26031) `~/.zshrc`에 `[ "$TERM_PROGRAM" = Orca ] && export CLAUDE_CODE_FORCE_TERMINAL_IMAGES=1`을 넣으면 부드럽게 나와요.
 
-크기는 기본 `small`(그림 16×5칸, 픽셀 22×5칸)이고, `/nunchi size big`이면 두 배(그림 32×10칸, 픽셀 44×10칸)예요.
+크기는 기본 `small`(그림 16×5칸, 픽셀 22×5칸)이고, `/nunchi size big`이면 두 배(그림 32×10칸, 픽셀 44×10칸)예요. 입력창 위 공간이 10줄이 안 되거나 폭이 70칸이 안 되면 `small`로 그려요.
 
 ## 명령
 
@@ -218,11 +205,17 @@ Claude Code에서:
 | `/nunchi on\|off` | 전부 보이기/숨기기 |
 | `/nunchi status` | 지금 상태를 글로 (무드, 위치, git, PR, 모델, 사용량, 설정) |
 
-설정은 저장돼서 다음 세션에도 이어져요. 0.1·0.2에서 저장한 설정은 새 이름으로 옮겨지고, 마스코트 크기는 `small`, 막대는 `solid`로 바뀌어요.
+설정은 저장돼서 다음 세션에도 이어져요. `/nunchi pick`은 `style`과 같아요.
 
 ## 업데이트
 
-`/plugin` → **Installed** → **nunchi** → update. 로컬 마켓플레이스로 설치했다면 이 폴더를 바로 읽으니, 고친 뒤 `/reload-plugins`만 하면 돼요.
+nunchi 같은 개인 마켓플레이스는 자동 업데이트가 기본으로 꺼져 있어요. 한 번만 켜 두면 새 버전을 알아서 받아요.
+
+```
+/plugin → Marketplaces → nunchi → Enable auto-update
+```
+
+켜 두면 세션을 시작한 뒤 새 버전을 받아 오고, `Plugin updated: nunchi · Run /reload-plugins to apply`가 떠요. `/reload-plugins`를 하거나 다음 세션부터 적용돼요. 직접 받으려면 `/plugin` → **Installed** → **nunchi** → **Update now**, 또는 터미널에서 `claude plugin update nunchi@nunchi`.
 
 ## 보안
 
@@ -234,9 +227,9 @@ nunchi는 보기만 해요. 도구 호출·요청·대화 내용을 바꾸지 �
 
 git은 `--no-optional-locks`라서 인덱스 잠금을 잡지 않고, Claude Code가 저장소 훅을 끈 채로 실행해요. 세션 시작, 편집·명령 도구 실행 뒤(1.5초 간격 이상), 턴 완료, 20초마다 읽어요.
 
-네트워크로 나가는 건 `gh` 하나예요. **GitHub API를 읽기 전용으로 호출**하고, 이미 로그인된 `gh` 계정을 써요. 세션 시작, 브랜치가 바뀔 때, push·PR 뒤, 1분마다 실행하고, `gh`가 없거나 로그인돼 있지 않으면 그 세션에서는 다시 실행하지 않아요. 외부로 나가는 게 싫으면 `/nunchi pr off`, git도 끄려면 `/nunchi git off`. 프롬프트나 코드는 어디로도 보내지 않아요.
+네트워크로 나가는 건 `gh` 하나예요. **GitHub API를 읽기 전용으로 호출**하고, 이미 로그인된 `gh` 계정을 써요. 세션 시작, 브랜치가 바뀔 때, push·PR 뒤, 1분마다 실행하고, `gh`가 없거나 로그인돼 있지 않으면 그 세션에서는 다시 실행하지 않아요(`/nunchi pr on`으로 다시 시도). 외부로 나가는 게 싫으면 `/nunchi pr off`, git도 끄려면 `/nunchi git off`. 프롬프트나 코드는 어디로도 보내지 않아요.
 
-effort를 보여주려고 세션 시작 때 `$.settings.read()`로 설정을 한 번 읽는데, `effortLevel` 값만 꺼내 두고 나머지(env 등)는 보관하지도 어디로 보내지도 않아요.
+effort를 보여주려고 세션 시작 때 `$.settings.read()`로 설정을 한 번 읽는데, effort 값(`effortLevel`, 모델별 `modelSettings[…].effortLevel`)만 꺼내 두고 나머지(env 등)는 보관하지도 어디로 보내지도 않아요.
 
 쓰는 API는 `claude plugin validate`로 확인할 수 있어요: `$.audio.play`, `$.clock.every`, `$.command.register`, `$.process.run`, `$.session.model`, `$.session.usage`, `$.settings.read`, `$.store.get/set`, `$.ui.blit`, `$.ui.invalidate`, `$.ui.open`, `$.ui.resolve`. 프롬프트·권한 확인·도구 호출·서브에이전트를 지나가는 훅은 `.catch(passThrough)`로 감싸 있어서, nunchi에서 오류가 나도 Claude의 작업은 그대로 진행돼요.
 
@@ -271,9 +264,9 @@ README의 그림은 모두 `tools/make-readme-art.mjs`가 **nunchi의 그리기 
 
 | 명령 | 하는 일 |
 |---|---|
-| `node tools/term-demo.mjs [--themes] [--live <motion>]` | 픽셀 마스코트를 터미널에 그림 |
-| `node tools/smooth-demo.mjs [--live <motion>]` | 부드러운 마스코트를 kitty 그래픽으로 그림 |
-| `node tools/make-sheet.mjs`, `node tools/make-smooth-sheet.mjs` | 동작 전체를 `tools/sheet.svg`, `tools/smooth-sheet.png`로 저장 |
+| `node tools/term-demo.mjs [--theme <이름>] [--themes] [--live [<동작>]]` | 픽셀 마스코트를 터미널에 그림 |
+| `node tools/smooth-demo.mjs [--theme <이름>] [--live [<동작>]]` | 부드러운 마스코트를 kitty 그래픽으로 그림 |
+| `node tools/make-sheet.mjs [<테마>]`, `node tools/make-smooth-sheet.mjs [<테마>]` | 동작 전체를 `tools/sheet.svg`, `tools/smooth-sheet.png`로 저장 |
 | `node tools/kitty-probe.mjs` | 터미널의 kitty 그래픽 지원 확인 (Orca에 Unicode placeholder 지원이 들어왔는지 볼 때) |
 
 ## 크레딧
