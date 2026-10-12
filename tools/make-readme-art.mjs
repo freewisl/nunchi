@@ -1,7 +1,7 @@
 // Draws the README's pictures with nunchi's own drawing code, so they show what nunchi really
-// draws: assets/banner.svg, demo.svg (a session in the terminal) and styles.svg
-// (every bar style, the one-line looks, the themes). They move as nunchi does, a frame every
-// 100 ms, as SMIL animations a README on GitHub plays.
+// draws: assets/banner.svg, demo.svg (a session in the terminal), styles.svg (every bar style,
+// the one-line looks, the themes) and render.svg (the smooth picture beside the pixel text). They
+// move as nunchi does, a frame every 100 ms, as SMIL animations a README on GitHub plays.
 // node tools/make-readme-art.mjs
 
 import { writeFileSync, mkdirSync } from 'fs'
@@ -10,7 +10,7 @@ import { panelRows, panelBars, collapsedRow, widthOf } from '../hooks/hud.js'
 import { elapsed } from '../hooks/mood.js'
 import { THEME_NAMES, theme, color, mascotPalette } from '../hooks/mascot/themes.js'
 import { frameAt, W as PET_W, H as PET_H } from '../hooks/mascot/sprite.js'
-import { smoothScene, paint, toSvgShapes, SW, SH } from '../hooks/mascot/smooth.js'
+import { SMOOTH_MOTIONS, smoothScene, paint, toSvgShapes, SW, SH } from '../hooks/mascot/smooth.js'
 
 const OUT = new URL('../assets/', import.meta.url)
 const FRAME_MS = 100
@@ -142,6 +142,41 @@ function pet(poses, pal, ox, oy, pw = CW, ph = CH / 2) {
   return `<g transform="translate(${at[0]})" shape-rendering="crispEdges">${steps('transform', at, 'animateTransform', ' type="translate"') ?? ''}${body}</g>`
 }
 
+// the smooth mascot as kitty and Ghostty draw it: the picture fit into its box of cells
+// (SIZES.small.img in register.js)
+const SMOOTH_COLS = 16
+const SMOOTH_ROWS = 5
+
+// the smooth mascot through `poses`, one a frame, in scene units (SW x SH)
+function smoothBody(poses, pal) {
+  const keys = poses.map((p) => toSvgShapes(paint(smoothScene(p.motion, p.ms, p.flip), pal)))
+  let body = ''
+  for (const k of new Set(keys)) {
+    const shown = keys.map((q) => (q === k ? 'visible' : 'hidden'))
+    body += `<g visibility="${shown[0]}">${steps('visibility', shown) ?? ''}${k}</g>`
+  }
+  return body
+}
+
+// the smooth mascot through `poses` ({ motion, ms, flip, x, y }, x and y in cells), its picture
+// scaled to fit a box of cols by rows cells of cw by ch
+function smoothPet(poses, pal, ox, oy, cw = CW, ch = CH, cols = SMOOTH_COLS, rows = SMOOTH_ROWS) {
+  const k = Math.min((cols * cw) / SW, (rows * ch) / SH)
+  const dx = (cols * cw - SW * k) / 2
+  const dy = (rows * ch - SH * k) / 2
+  const at = poses.map((p) => `${n(ox + dx + p.x * cw)} ${n(oy + dy + p.y * ch)}`)
+  return `<g transform="translate(${at[0]})">${steps('transform', at, 'animateTransform', ' type="translate"') ?? ''}<g transform="scale(${n(k)})">${smoothBody(poses, pal)}</g></g>`
+}
+
+// a motion's whole loop, a frame every 100 ms
+const loopOf = (motion, flip = false) =>
+  Array.from({ length: Math.round(SMOOTH_MOTIONS[motion].loop / FRAME_MS) }, (_, f) => ({ motion, ms: f * FRAME_MS, flip, x: 0, y: 0 }))
+
+// the palette as CSS variables, so one drawing of the mascot serves every theme
+const VARS = Object.fromEntries(Object.keys(mascotPalette('claude')).map((k) => [k, '@' + k]))
+const byVars = (svg) => svg.replace(/(fill|stroke)="@(\w+)"/g, 'style="$1:var(--$2)"')
+const varsOf = (pal) => Object.entries(pal).map(([k, c]) => `--${k}:${c}`).join(';')
+
 // ---------- a session to draw ----------
 
 const SHOW = { style: 'solid', motion: 'all', collapsed: 'chips', plan: true, agents: true, git: true, pr: true, model: true, context: true, limits: true, cost: false, clock: false }
@@ -263,7 +298,7 @@ function demo() {
       const rows = s.line ? [collapsedRow(info, SHOW, panelCols)] : panelRows(info, SHOW, panelCols)
       if (s.speed) {
         x += dir * s.speed
-        if (x > COLS - PET_W - 4) dir = -1
+        if (x > COLS - SMOOTH_COLS - 4) dir = -1
         if (x < 2) dir = 1
       }
       frames.push({ rows, pose: { motion: s.motion, ms: i * FRAME_MS, flip: dir < 0, x } })
@@ -271,7 +306,7 @@ function demo() {
     f0 += s.frames
   }
   const most = Math.max(...frames.map((fr) => fr.rows.length))
-  const band = PET_ROWS + most // the band over the prompt, filled from the bottom as the engine does
+  const band = SMOOTH_ROWS + most // the band over the prompt, filled from the bottom as the engine does
   const rule = [{ text: '─'.repeat(COLS), tone: 'dim~lo' }]
   const head = [
     [{ text: '> ', tone: 'dim' }, { text: 'fix the token refresh in login and add tests', tone: 'text' }],
@@ -292,7 +327,7 @@ function demo() {
       [{ text: '  ⏵⏵ bypass permissions on', tone: 'hot~lite' }, { text: ' (shift+tab to cycle)', tone: 'dim' }],
     ]
   }
-  const poses = frames.map((fr) => ({ ...fr.pose, y: head.length + band - fr.rows.length - PET_ROWS }))
+  const poses = frames.map((fr) => ({ ...fr.pose, y: head.length + band - fr.rows.length - SMOOTH_ROWS }))
   const PAD = 18
   const TOP = 34
   const rowsTotal = head.length + band + 4
@@ -305,7 +340,7 @@ function demo() {
 ${['#FF5F57', '#FEBC2E', '#28C840'].map((c, i) => `<circle cx="${20 + i * 18}" cy="17" r="5.5" fill="${c}"/>`).join('')}
 <text x="${w / 2}" y="21" text-anchor="middle" style="font:500 12px ${SANS}" fill="${th.dim}">claude — ~/project/app</text>
 ${screen(at, frames.length, th, PAD, TOP)}
-${pet(poses, mascotPalette('claude'), PAD, TOP)}
+${smoothPet(poses, mascotPalette('claude'), PAD, TOP)}
 </svg>`
   return svg
 }
@@ -365,24 +400,76 @@ function styles() {
   headline('themes', '/nunchi theme  ·  the mascot and every bar take its colors')
   const GAP = 12
   const cardW = (W - PAD * 2 - GAP * 3) / 4
-  const PX = 4 // the mascot's pixels, smaller than the terminal's
-  const cardH = 14 + PET_H * PX + 10 + CH * 2 + 14
+  const PK = 1.5 // the mascot's scale, smaller than the terminal's
+  const cardH = 14 + SH * PK + 4 + CH * 2 + 14
+  // the two motions the cards take turns at, drawn once and shown in each card's colors
+  let defs = ''
+  for (const motion of ['idle', 'look']) defs += `<g id="pet-${motion}">${byVars(smoothBody(loopOf(motion), VARS))}</g>`
   THEME_NAMES.forEach((name, i) => {
     const t = theme(name)
     const x = PAD + (i % 4) * (cardW + GAP)
     const top = y + Math.floor(i / 4) * (cardH + GAP)
     body += `<rect x="${n(x)}" y="${top}" width="${n(cardW)}" height="${cardH}" rx="10" fill="${t.bg}" stroke="${th.track}"/>`
     label(name, String.fromCharCode(97 + i), top + 14, t, x + 14)
-    const poses = Array.from({ length: LOOP }, (_, f) => ({ motion: i % 2 ? 'look' : 'idle', ms: f * FRAME_MS + i * 900, flip: false, x: 0, y: 0 }))
-    body += pet(poses, mascotPalette(name), n(x + cardW - 14 - PET_W * PX), top + 14, PX, PX)
+    body += `<g transform="translate(${n(x + cardW - 10 - SW * PK)} ${top + 6}) scale(${PK})" style="${varsOf(mascotPalette(name))}"><use href="#pet-${i % 2 ? 'look' : 'idle'}"/></g>`
     const at = (f) => panelBars(sample({ frame: f + i * 5 }), { ...SHOW, style: 'solid', context: false }, 40).meters.map(barOnly)
-    body += screen(at, LOOP, t, x + 14, top + 14 + PET_H * PX + 10)
+    body += screen(at, LOOP, t, x + 14, top + 14 + SH * PK + 4)
   })
   y += 2 * cardH + GAP
 
   const h = n(y + PAD)
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}">
 <title>Every nunchi bar style (solid, pixel, segments, line, blocks, dots, spark) as the terminal draws it, moving; the three one-line looks (chips, text, rings); and the eight themes with their mascot</title>
+<defs>${defs}</defs>
+<rect width="${W}" height="${h}" rx="12" fill="${th.bg}"/>
+${body}
+</svg>`
+}
+
+// ---------- render.svg: the smooth picture beside the pixel text ----------
+
+function renders() {
+  const th = CLAUDE
+  const pal = mascotPalette('claude')
+  const cw = CW * 2 // the cells, twice a terminal's
+  const ch = CH * 2
+  const PAD = 24
+  const GAP = 16
+  const W = 876
+  const cardW = (W - PAD * 2 - GAP) / 2
+  const ART = 72 // the art's top in a card
+  const cardH = ART + SMOOTH_ROWS * ch + 40
+  const poses = [
+    ...Array.from({ length: 20 }, (_, f) => ({ motion: 'wave', ms: f * FRAME_MS, flip: false, x: 0, y: 0 })),
+    ...Array.from({ length: 24 }, (_, f) => ({ motion: 'work', ms: f * FRAME_MS, flip: false, x: 0, y: 0 })),
+    ...Array.from({ length: 18 }, (_, f) => ({ motion: 'celebrate', ms: f * FRAME_MS, flip: false, x: 0, y: 0 })),
+  ]
+  // the terminal's cells under the art
+  const grid = (x0, y0, cols, rows) => {
+    let d = ''
+    for (let c = 0; c <= cols; c++) d += `M${n(x0 + c * cw)} ${y0}v${rows * ch}`
+    for (let r = 0; r <= rows; r++) d += `M${n(x0)} ${n(y0 + r * ch)}h${n(cols * cw)}`
+    return `<path d="${d}" stroke="${th.track}" stroke-width="1" fill="none"/>`
+  }
+  const cards = [
+    { title: 'kitty · Ghostty', sub: '부드러운 이미지 — Claude Code가 터미널에 그림을 그려요', foot: '16×5칸 · render auto → smooth picture', cols: SMOOTH_COLS, art: (x, y) => smoothPet(poses, pal, x, y, cw, ch) },
+    { title: '그 밖의 터미널 · tmux · SSH', sub: '픽셀 글자 — 글자 한 칸을 위아래 반 칸씩 칠해서 그려요', foot: '22×5칸 · render auto → pixel text', cols: PET_W, art: (x, y) => pet(poses, pal, x, y, cw, ch / 2) },
+  ]
+  let body = ''
+  cards.forEach((c, i) => {
+    const x = PAD + i * (cardW + GAP)
+    const artX = n(x + (cardW - c.cols * cw) / 2)
+    const artY = PAD + ART
+    body += `<rect x="${n(x)}" y="${PAD}" width="${n(cardW)}" height="${cardH}" rx="10" fill="none" stroke="${th.track}"/>`
+    body += `<text x="${n(x + 16)}" y="${PAD + 30}" style="font:700 15.5px ${SANS}" fill="${th.text}">${esc(c.title)}</text>`
+    body += `<text x="${n(x + 16)}" y="${PAD + 52}" style="font:400 12.5px ${SANS}" fill="${th.dim}">${esc(c.sub)}</text>`
+    body += grid(artX, artY, c.cols, SMOOTH_ROWS)
+    body += c.art(artX, artY)
+    body += `<text x="${n(x + 16)}" y="${artY + SMOOTH_ROWS * ch + 26}" style="font:400 12px ${MONO}" fill="${th.dim}">${esc(c.foot)}</text>`
+  })
+  const h = PAD + cardH + PAD
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}">
+<title>The mascot two ways, on a grid of terminal cells: a smooth picture where Claude Code draws pictures (kitty, Ghostty), and pixel text of half-block characters everywhere else (other terminals, tmux, SSH)</title>
 <rect width="${W}" height="${h}" rx="12" fill="${th.bg}"/>
 ${body}
 </svg>`
@@ -397,13 +484,8 @@ function banner() {
   const K = 4.2 // the smooth mascot's scale
   const pal = mascotPalette('claude')
   const LOOP = 40
-  // the mascot waves, then looks about: the Desktop app's vector mascot, a frame every 100 ms
-  const keys = Array.from({ length: LOOP }, (_, f) => toSvgShapes(paint(smoothScene(f < 20 ? 'wave' : 'idle', f * FRAME_MS), pal)))
-  let mascot = ''
-  for (const k of new Set(keys)) {
-    const shown = keys.map((q) => (q === k ? 'visible' : 'hidden'))
-    mascot += `<g visibility="${shown[0]}">${steps('visibility', shown) ?? ''}${k}</g>`
-  }
+  // the mascot waves, then looks about, a frame every 100 ms
+  const mascot = smoothBody(Array.from({ length: LOOP }, (_, f) => ({ motion: f < 20 ? 'wave' : 'idle', ms: f * FRAME_MS })), pal)
   const at = (f) => panelBars(sample({ frame: f * 1 }), { ...SHOW, style: 'pixel' }, 64).meters
   const LOOP_BARS = 132
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
@@ -424,6 +506,7 @@ for (const [name, make] of [
   ['banner.svg', banner],
   ['demo.svg', demo],
   ['styles.svg', styles],
+  ['render.svg', renders],
 ]) {
   const svg = make()
   writeFileSync(new URL(name, OUT), svg)

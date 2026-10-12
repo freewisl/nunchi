@@ -149,7 +149,7 @@ Claude Code에서:
 
 ## 마스코트
 
-작은 Claude(픽셀 22×5칸)가 입력창 위를 돌아다녀요. 넓은 터미널에서는 막대 오른쪽 빈 곳을, 좁으면 패널 위를 다녀요. 하는 일에 따라 동작이 바뀌어요.
+작은 Claude가 입력창 위를 돌아다녀요. 넓은 터미널에서는 막대 오른쪽 빈 곳을, 좁으면 패널 위를 다녀요. 하는 일에 따라 동작이 바뀌어요.
 
 | 상황 | 마스코트 | 위치 |
 |---|---|---|
@@ -170,13 +170,32 @@ Claude Code에서:
 
 🔔는 소리가 나는 경우예요 (macOS `afplay`, 다른 OS에서는 무음). `/nunchi sound off`로 꺼요. 테스트 실행은 `npm test`, `pnpm test`, `pytest`, `jest`, `vitest`, `go test`, `cargo test`, `make test` 같은 명령으로 알아보고, commit·push·PR은 Claude Code가 Bash 결과에 붙여주는 git 작업 정보로 알아봐요.
 
-**그려지는 방식.** kitty·Ghostty에서는 부드러운 이미지로, 그 밖의 터미널(Orca 포함)에서는 픽셀 마스코트(하프블록 글자)로, Claude Desktop에서는 SVG로 그려요. `render auto`(기본)는 이미지를 먼저 시도하고, 터미널이 거절하면 픽셀로 바꿔요. `/nunchi size big`이면 두 배(44×10)로 커져요.
+### 부드럽게 나올 때, 각지게 나올 때
 
-Orca는 Claude Code가 이미지를 그리는 데 쓰는 kitty Unicode placeholder를 아직 지원하지 않아요 (stablyai/orca PR #23616, #26031). 지원이 들어온 뒤 `~/.zshrc`에 아래 줄을 넣으면 Orca에서도 부드러운 이미지로 나와요. 지원 전에 켜면 화면이 깨져요.
+<p align="center">
+  <img src="assets/render.svg" alt="같은 마스코트를 두 방식으로 그린 모습. 왼쪽은 kitty·Ghostty에서 그림으로 그린 부드러운 마스코트(16×5칸), 오른쪽은 그 밖의 터미널에서 글자 한 칸을 위아래 반 칸씩 칠해 그린 각진 마스코트(22×5칸)." width="860">
+</p>
 
-```sh
-[ "$TERM_PROGRAM" = Orca ] && export CLAUDE_CODE_FORCE_TERMINAL_IMAGES=1
-```
+마스코트는 같은 모양을 두 가지로 그려요.
+
+- **부드러운 이미지.** Claude Code가 터미널에 그림을 그릴 수 있을 때예요. Claude Code는 kitty 그래픽 프로토콜의 Unicode placeholder로 그림을 그리는데, 지금 이걸 켜 주는 터미널은 **kitty(0.28.0 이상)와 Ghostty**뿐이에요.
+- **픽셀 글자.** 그 밖의 모든 경우예요. 글자 한 칸을 위아래 반 칸씩(`▀` `▄`) 색칠해서 그려요. 글자라서 어느 터미널에서나 나오지만, 픽셀 하나가 반 칸이라 각져 보여요.
+- Claude Desktop에서는 SVG로 그려서 늘 부드러워요.
+
+`render auto`(기본)는 그림을 먼저 그려 보고, 터미널이 거절하면 픽셀로 바꿔요. 따로 설정할 건 없어요. 각지게 나온다면 보통 이 중 하나예요.
+
+| 경우 | 이유 | 이렇게 하면 부드러워져요 |
+|---|---|---|
+| macOS 기본 터미널, iTerm2, VS Code 내장 터미널, Orca 등 | 터미널이 placeholder 그림을 못 그리거나, Claude Code가 그 터미널에선 그림을 켜지 않아요 | kitty나 Ghostty에서 실행 |
+| tmux·screen 안 | 멀티플렉서가 그림을 넘겨주지 않아요 | tmux 밖에서 실행 |
+| SSH로 접속 | Claude Code가 터미널 종류를 못 알아볼 수 있어요 | kitty·Ghostty로 접속할 때만 서버에 `export CLAUDE_CODE_FORCE_TERMINAL_IMAGES=1` |
+| `/nunchi render pixel`로 바꿔 둠 | 직접 픽셀을 골랐어요 | `/nunchi render auto` |
+
+어떤 경우인지는 `/nunchi status`의 둘째 줄 끝에 나와요. `render auto → smooth picture`면 그림으로, `render auto → pixel text (…)`면 픽셀로 그리는 중이고 괄호 안이 이유예요. 예를 들어 Orca에서는 `the terminal draws no placeholder images (… terminal xterm.js …)`가 나와요.
+
+`CLAUDE_CODE_FORCE_TERMINAL_IMAGES=1`은 그림을 지원하는 터미널에서만 켜세요. 지원하지 않는 터미널에서 켜면 화면이 깨져요. Orca는 placeholder 지원이 들어온 뒤(stablyai/orca PR #23616, #26031) `~/.zshrc`에 `[ "$TERM_PROGRAM" = Orca ] && export CLAUDE_CODE_FORCE_TERMINAL_IMAGES=1`을 넣으면 부드럽게 나와요.
+
+크기는 기본 `small`(그림 16×5칸, 픽셀 22×5칸)이고, `/nunchi size big`이면 두 배(그림 32×10칸, 픽셀 44×10칸)예요.
 
 ## 명령
 
@@ -226,11 +245,11 @@ effort를 보여주려고 세션 시작 때 `$.settings.read()`로 설정을 한
 claude plugin validate .
 claude plugin test .
 claude --plugin-dir .                     # 설치 없이 실행
-node tools/make-readme-art.mjs            # assets/*.svg (배너, 데모, 스타일) 다시 그리기
+node tools/make-readme-art.mjs            # assets/*.svg (배너, 데모, 스타일, 그리는 방식) 다시 그리기
 node tools/make-sounds.mjs                # sounds/*.wav 다시 만들기
 ```
 
-README의 배너, 데모, 스타일 그림은 `tools/make-readme-art.mjs`가 **nunchi의 그리기 코드**(`bars.js`, `hud.js`, 마스코트 스프라이트)로 그려요. 그래서 그림은 늘 nunchi가 실제로 그리는 것과 같아요. 막대 모양이나 테마를 고쳤다면 다시 실행하세요.
+README의 그림은 모두 `tools/make-readme-art.mjs`가 **nunchi의 그리기 코드**(`bars.js`, `hud.js`, 마스코트의 그림과 픽셀 스프라이트)로 그려요. 그래서 그림은 늘 nunchi가 실제로 그리는 것과 같아요. 막대 모양이나 테마를 고쳤다면 다시 실행하세요.
 
 | 파일 | 역할 |
 |---|---|
