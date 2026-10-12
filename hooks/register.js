@@ -1,10 +1,10 @@
 // nunchi: a Claude mascot that reads the room. Above the prompt it wanders while you are idle,
 // paces while Claude thinks, reads and types along with it, runs about while agents work, raises
 // a ? when Claude needs you, celebrates a finished turn, a commit or passing tests, and naps when
-// you are away. Under it a panel (or, with `/nunchi place below`, under the prompt): the plan's
-// bar, a row per subagent, git, the pull request, the model and its effort, and a bar for the
+// you are away. Under it (or beside it) a panel: the plan's bar, a row per subagent, git, the pull request, the model and its effort, and a bar for the
 // context window and each plan limit with how fast it is going. Seven bar styles, three one-line looks, eight themes, a picker for all of them, and
-// short sounds when Claude needs you or finishes.
+// short sounds when Claude needs you or finishes. `/nunchi place below` moves the mascot and the
+// panel under the prompt.
 //
 // The mascot is a smooth picture where Claude Code draws pictures (kitty graphics through Unicode
 // placeholders: kitty, Ghostty), the pixel sprite as half-block text where it cannot (Orca
@@ -42,15 +42,15 @@ const PLAY_MS = 6000
 const PREFS_VERSION = 3
 const RENDERS = ['auto', 'smooth', 'pixel']
 const VIEWS = ['panel', 'line', 'auto'] // auto: the panel while Claude works or needs you
-// where the panel goes: above, in the band over the prompt under the mascot (the engine keeps the
-// mode line, `⏵⏵ ... on`, right under the prompt, so only there does the panel come before it);
-// below, under the prompt after that line
+// where the mascot and the panel go: above, in the band over the prompt (the engine keeps the mode
+// line, `⏵⏵ ... on`, right under the prompt, so only there do they come before it); below, under
+// the prompt after that line
 const PLACES = ['above', 'below']
 const LOOKS = ['chips', 'text', 'rings'] // the one-line looks
 // what moves: all, every bar all the time; work, the bar of what Claude does while it works; off
 const MOTIONS = ['all', 'work', 'off']
-// where the mascot goes when the panel is over the prompt: side, in the room right of the bars
-// (where the terminal is wide enough), else above
+// where the mascot goes beside the panel: side, in the room right of the bars (where the terminal
+// is wide enough), else above
 const PET_AT = ['side', 'above']
 const SIDE_WORDS = 40 // columns the panel keeps after its bars, for their words, with the mascot beside
 const SIDE_MIN = 96 // and never less, so the git row keeps the model
@@ -91,7 +91,7 @@ const HELP = [
   '/nunchi style [<name>]           ' + BAR_STYLES.join(' ') + ' (no name: the picker)',
   '/nunchi look <name>              the one line: ' + LOOKS.join(' '),
   '/nunchi view panel|line|auto     auto: the panel while Claude works or needs you',
-  '/nunchi place above|below        the panel over the prompt (under the mascot) or under it',
+  '/nunchi place above|below        the mascot and the panel over the prompt or under it',
   '/nunchi theme [<name>]           ' + THEME_NAMES.join(' '),
   '/nunchi render auto|smooth|pixel how the mascot is drawn',
   '/nunchi size small|big           the mascot',
@@ -449,10 +449,56 @@ function hudTree(Box, Text, cols, room, working, clip = null) {
   })
 }
 
+// the mascot and the panel as one tree, in the band over the prompt or under it (`cols` by `room`):
+// the mascot beside the panel where the terminal leaves it room right of the bars and their words
+// (the panel then has the whole height), else over it
+function bandTree(e, { Box, Text, Image, Svg }, cols, room, working) {
+  surface = e.surface
+  const parts = []
+  const petFits = prefs.pet && room >= SIZES.small.img[1]
+  if (petFits) size = sizeFor({ maxRows: room, bodyColumns: cols })
+  const inner = cols - 2
+  const area = Math.min(inner, Math.max(Math.round(inner / 4) + SIDE_WORDS, SIDE_MIN))
+  const side = petFits && prefs.petAt === 'side' && inner - area - SIDE_GAP >= petCols(size) + 2
+  const hud = side ? hudTree(Box, Text, inner, room, working, area) : hudTree(Box, Text, inner, room - (petFits ? SIZES[size].img[1] : 0), working)
+  const beside = side && hud
+  if (petFits) {
+    roam.room = Math.max(0, beside ? inner - area - SIDE_GAP - petCols(size) : cols - petCols(size) - 1)
+    const t = st.now - shown.since
+    let pet
+    if (e.surface !== 'terminal' && Svg) {
+      const k = size === 'big' ? 3 : 2
+      const shapes = paint(smoothScene(pose.motion, t, pose.flip), mascotPalette(prefs.theme))
+      pet = Svg({
+        alt: 'nunchi, ' + pose.motion,
+        width: SW * k,
+        height: SH * k,
+        source: `<svg xmlns="http://www.w3.org/2000/svg" width="${SW * k}" height="${SH * k}" viewBox="0 0 ${SW} ${SH}">${toSvgShapes(shapes)}</svg>`,
+      })
+    } else if (wantsSmooth() && Image) {
+      site = e.requestId
+      const [columns, rows] = SIZES[size].img
+      pet = Box({
+        height: rows,
+        flexShrink: 0,
+        children: [Image({ key: 'nunchi-pet', source: smoothFrame(pose.motion, t, pose.flip, size), columns, rows, alt: ' ' })],
+      })
+    } else pet = pixelPet(Box, Text, t, SIZES[size].px)
+    const band = Box({ key: 'nunchi-band', flexDirection: 'row', marginLeft: Math.round(roam.x) + (beside ? SIDE_GAP : 0), flexShrink: 0, children: [pet] })
+    // beside: the panel, then the mascot standing on its last row
+    if (beside) parts.push(Box({ key: 'nunchi-side', flexDirection: 'row', alignItems: 'flex-end', flexShrink: 0, children: [hud, band] }))
+    else parts.push(band)
+  }
+  if (hud && !beside) parts.push(hud)
+  if (!parts.length) return null
+  return parts.length === 1 ? parts[0] : Box({ flexDirection: 'column', flexShrink: 0, children: parts })
+}
+
 // a choice from the picker or a command: kept, and drawn at once
 async function choose($, key, value) {
   prefs[key] = value
   if (key === 'theme') frames.clear()
+  if (key === 'place') site = null
   await save($)
   $.ui.invalidate('ui.render')
 }
@@ -690,7 +736,7 @@ export function register(on) {
         try {
           placed = (await $.ui.open({ id: PICKER, title: 'nunchi style', focus: true, closeOnEscape: true })).isPlaced
         } catch {}
-        if (placed) return { text: 'nunchi picker: 1–7 bar style · 8 9 0 one-line look · a–h theme · x panel or line · p over or under the prompt · m motion · z sound · esc closes' }
+        if (placed) return { text: 'nunchi picker: 1–7 bar style · 8 9 0 one-line look · a–h theme · o u over or under the prompt · s t the mascot beside or over the panel · x panel or line · m motion · z sound · esc closes' }
         return { text: (b ? 'no style "' + b + '"\n' : '') + stylePreviews() + '\n/nunchi style <name> picks one' }
       }
     } else if (a === 'look') {
@@ -703,6 +749,7 @@ export function register(on) {
     } else if (a === 'place') {
       if (!PLACES.includes(b)) return { text: 'place: ' + PLACES.join(' ') + ' (now ' + prefs.place + ')' }
       prefs.place = b
+      site = null
     } else if (a === 'pet' && PET_AT.includes(b)) {
       prefs.petAt = b
       prefs.pet = true
@@ -743,66 +790,22 @@ export function register(on) {
   // above the prompt: the mascot, wherever it has wandered to across the band, and under it the
   // panel when it is placed above
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const petHere = prefs.on && prefs.pet
-    const panelHere = prefs.on && prefs.place === 'above'
-    if ((!petHere && !panelHere) || e.props.hasSurvey) return next(e)
+    if (!prefs.on || prefs.place !== 'above' || e.props.hasSurvey) return next(e)
     const below = await next(e)
-    const { Box, Text, Image, Svg } = $.ui.resolve(e)
-    surface = e.surface
-    const cols = e.props.bodyColumns ?? 80
-    let room = e.props.maxRows ?? 20
-    const working = e.props.isWorking === true
-    const parts = []
-    const petFits = petHere && room >= SIZES.small.img[1]
-    if (petFits) size = sizeFor(e.props)
-    // the mascot beside the panel when the terminal leaves it room right of the bars and their
-    // words: the panel then has the band's whole height. Else above it
-    const inner = cols - 2
-    const area = Math.min(inner, Math.max(Math.round(inner / 4) + SIDE_WORDS, SIDE_MIN))
-    const side = petFits && panelHere && prefs.petAt === 'side' && inner - area - SIDE_GAP >= petCols(size) + 2
-    const hud = panelHere ? (side ? hudTree(Box, Text, inner, room, working, area) : hudTree(Box, Text, inner, room - (petFits ? SIZES[size].img[1] : 0), working)) : null
-    const beside = side && hud
-    if (petFits) {
-      roam.room = Math.max(0, beside ? inner - area - SIDE_GAP - petCols(size) : cols - petCols(size) - 1)
-      const t = st.now - shown.since
-      let pet
-      if (e.surface !== 'terminal' && Svg) {
-        const k = size === 'big' ? 3 : 2
-        const shapes = paint(smoothScene(pose.motion, t, pose.flip), mascotPalette(prefs.theme))
-        pet = Svg({
-          alt: 'nunchi, ' + pose.motion,
-          width: SW * k,
-          height: SH * k,
-          source: `<svg xmlns="http://www.w3.org/2000/svg" width="${SW * k}" height="${SH * k}" viewBox="0 0 ${SW} ${SH}">${toSvgShapes(shapes)}</svg>`,
-        })
-      } else if (wantsSmooth() && Image) {
-        site = e.requestId
-        const [columns, rows] = SIZES[size].img
-        pet = Box({
-          height: rows,
-          flexShrink: 0,
-          children: [Image({ key: 'nunchi-pet', source: smoothFrame(pose.motion, t, pose.flip, size), columns, rows, alt: ' ' })],
-        })
-      } else pet = pixelPet(Box, Text, t, SIZES[size].px)
-      const band = Box({ key: 'nunchi-band', flexDirection: 'row', marginLeft: Math.round(roam.x) + (beside ? SIDE_GAP : 0), flexShrink: 0, children: [pet] })
-      // beside: the panel, then the mascot standing on its last row
-      if (beside) parts.push(Box({ key: 'nunchi-side', flexDirection: 'row', alignItems: 'flex-end', flexShrink: 0, children: [hud, band] }))
-      else parts.push(band)
-    }
-    if (hud && !beside) parts.push(hud)
-    if (!parts.length) return below
-    const mine = parts.length === 1 ? parts[0] : Box({ flexDirection: 'column', flexShrink: 0, children: parts })
-    return below ? Box({ flexDirection: 'column', children: [mine, below] }) : mine
+    const els = $.ui.resolve(e)
+    const mine = bandTree(e, els, e.props.bodyColumns ?? 80, e.props.maxRows ?? 20, e.props.isWorking === true)
+    if (!mine) return below
+    return below ? els.Box({ flexDirection: 'column', children: [mine, below] }) : mine
   })
 
-  // under the prompt, after the engine's mode line, when the panel is placed below
+  // place below: the same under the prompt, after the engine's hint and mode lines
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     const below = await next(e)
     if (!prefs.on || prefs.place !== 'below') return below
-    const { Box, Text } = $.ui.resolve(e)
-    const hud = hudTree(Box, Text, Math.max(24, (e.viewport?.columns ?? 100) - 6), 99, e.props.isWorking === true)
-    if (!hud) return below
-    return below ? Box({ flexDirection: 'column', children: [below, hud] }) : hud
+    const els = $.ui.resolve(e)
+    const mine = bandTree(e, els, Math.max(26, (e.viewport?.columns ?? 100) - 4), 99, e.props.isWorking === true)
+    if (!mine) return below
+    return below ? els.Box({ flexDirection: 'column', children: [below, mine] }) : mine
   })
 
   // the picker: every bar style, one-line look and theme drawn as it would be, a key for each
@@ -824,6 +827,18 @@ export function register(on) {
         void choose($, 'look', l)
       }),
     )
+    // where the mascot and the panel go, and where the mascot goes beside the panel
+    const words = (text) => fit([{ text, tone: 'dim' }], cols)
+    const whereRows = [
+      row('place:above', 'o', prefs.place === 'above', 'over', words('mascot and panel over the prompt'), () => void choose($, 'place', 'above')),
+      row('place:below', 'u', prefs.place === 'below', 'under', words('mascot and panel under the prompt'), () => void choose($, 'place', 'below')),
+      ...PET_AT.map((at, i) =>
+        row('pet:' + at, ['s', 't'][i], prefs.pet && prefs.petAt === at, at, words(at === 'side' ? 'mascot right of the bars, when wide' : 'mascot over the panel'), () => {
+          prefs.pet = true
+          void choose($, 'petAt', at)
+        }),
+      ),
+    ]
     const themeRows = THEME_NAMES.map((n, i) => {
       const t = theme(n)
       const chip = drawBar('solid', { fill: [0, 0.6], tone: 'run', label: [{ text: t.label + ' 3/5' }], width: 16 })
@@ -850,6 +865,8 @@ export function register(on) {
         ...lookRows,
         head('theme'),
         ...themeRows,
+        head('where'),
+        ...whereRows,
         Box({
           key: 'foot',
           flexDirection: 'row',
@@ -858,8 +875,6 @@ export function register(on) {
             Button({ key: 'view', hotkey: 'x', plain: true, onPress: () => void choose($, 'view', prefs.view === 'line' ? 'panel' : 'line'), label: 'show ' + (prefs.view === 'line' ? 'the panel' : 'one line') }),
             Text({ color: th.dim, children: ['   '] }),
             Button({ key: 'sound', hotkey: 'z', plain: true, onPress: () => void choose($, 'sound', !prefs.sound), label: 'sound ' + onOff(prefs.sound) }),
-            Text({ color: th.dim, children: ['   '] }),
-            Button({ key: 'place', hotkey: 'p', plain: true, onPress: () => void choose($, 'place', prefs.place === 'above' ? 'below' : 'above'), label: 'panel ' + (prefs.place === 'above' ? 'over' : 'under') + ' the prompt' }),
             Text({ color: th.dim, children: ['   '] }),
             Button({ key: 'motion', hotkey: 'm', plain: true, onPress: () => void choose($, 'motion', MOTIONS[(MOTIONS.indexOf(prefs.motion) + 1) % MOTIONS.length]), label: 'motion ' + prefs.motion }),
           ],
