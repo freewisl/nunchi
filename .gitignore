@@ -1,0 +1,2 @@
+# types the engine lays for the editor when it loads a mod
+plugins/*/.claude-plugin/types/

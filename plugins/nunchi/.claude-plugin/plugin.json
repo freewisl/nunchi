@@ -1,0 +1,12 @@
+{
+  "name": "nunchi",
+  "version": "0.4.0",
+  "description": "A Claude mascot that reads the room: it wanders above the prompt and reads, types, runs, asks and celebrates with Claude, beside a live panel of the plan, subagents, context and plan limits, git, the pull request and the model. Seven animated bar styles, eight themes; terminal and Desktop.",
+  "author": {
+    "name": "freewisl",
+    "url": "https://github.com/freewisl"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/freewisl/claude-mods/tree/main/plugins/nunchi",
+  "repository": "https://github.com/freewisl/claude-mods"
+}
